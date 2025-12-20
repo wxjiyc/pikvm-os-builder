@@ -1,13 +1,25 @@
-name: __os__
+name: build
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       BOARD:
         required: true
         type: string
+        default: "rpi4"
       PLATFORM:
         required: true
-        type: string
+        type: choice
+        default: "v2-hdmiusb"
+        options:
+          - v2-hdmiusb
+          - v2-hdmi
+      ARCH:
+        required: true
+        type: choice
+        default: "arm"
+        options:
+          - arm
+          - aarch64
       SUFFIX:
         required: false
         type: string
@@ -20,18 +32,15 @@ on:
         required: false
         type: string
         default:
-    secrets:
-      DEPLOY_KEY:
-        required: true
 
 
 jobs:
   os:
     runs-on: ubuntu-latest
     env:
-      DEPLOY_KEY: "${{secrets.DEPLOY_KEY}}"
       BOARD: "${{inputs.BOARD}}"
       PLATFORM: "${{inputs.PLATFORM}}"
+      ARCH: "${{inputs.ARCH}}"
       SUFFIX: "${{inputs.SUFFIX}}"
       OLED: "${{inputs.OLED}}"
       FAN: "${{inputs.FAN}}"
@@ -40,19 +49,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Configuring SSH
-        run: |
-          test -n "$DEPLOY_KEY"
-          mkdir ~/.ssh
-          chmod 700 ~/.ssh
-          ssh-keyscan -H files.pikvm.org > ~/.ssh/known_hosts
-          echo "$DEPLOY_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
       - name: Creating config.mk
         run: |
           echo "BOARD=$BOARD" > config.mk
           echo "PLATFORM=$PLATFORM" >> config.mk
+          echo "ARCH=$ARCH" >> config.mk
           echo "DEPLOY_USER=data" >> config.mk
           echo "SUFFIX=$SUFFIX" >> config.mk
           echo "OLED=$OLED" >> config.mk
@@ -64,5 +65,8 @@ jobs:
       - name: Making image
         run: make image IMAGE_XZ=1
 
-      - name: Uploading image
-        run: make upload
+      - name: Archive image
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.BOARD }}-Arch-Linux-PiKVM-${{ inputs.ARCH }}
+          path: ${{ github.workspace }}/images/${{ inputs.PLATFORM }}-${{ inputs.BOARD }}/${{ inputs.ARCH }}/${{ inputs.PLATFORM }}-${{ inputs.BOARD }}-${{ inputs.ARCH }}-latest.img.xz
